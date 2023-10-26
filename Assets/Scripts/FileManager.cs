@@ -96,6 +96,11 @@ public static class FileManager
     {
         return File.Exists(path);
     }
+
+    public static string[] GetFilesInDirectory(string path)
+    {
+        return Directory.GetDirectories(path);
+    }
     #endregion
 
     #region String Lists
@@ -133,13 +138,10 @@ public static class FileManager
     #region GameData
     public static GameData ReadGameData(string path)
     {
-        GameData data = new GameData();
-
         BinaryReader reader = ReadFile(path, out FileStream stream);
         if (reader == null) return null;
 
-        data.exePath = reader.ReadString();
-        data.gameTitle = reader.ReadString();
+        GameData data = new GameData(reader.ReadString());
         data.gameDescription = reader.ReadString();
 
         CloseFile(reader, stream);
@@ -150,7 +152,6 @@ public static class FileManager
     {
         BinaryWriter writer = WriteFile(path, filename, out FileStream stream);
 
-        writer.Write(data.exePath);
         writer.Write(data.gameTitle);
         writer.Write(data.gameDescription);
 

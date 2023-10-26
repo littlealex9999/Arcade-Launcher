@@ -15,8 +15,12 @@ public class AppHelper
 
     public AppHelper(GameData gameData)
     {
-        data = gameData;
-        proc = Process.Start(data.exePath);
+        try {
+            data = gameData;
+            proc = Process.Start(data.applicationPath);
+        } catch {
+            throw new System.Exception("failed to start the application");
+        }
     }
 
     /// <summary>

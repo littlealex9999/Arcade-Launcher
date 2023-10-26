@@ -9,6 +9,9 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
 
+    public static string workingDirectory {  get; private set; }
+    public static string gamesDirectory {  get; private set; }
+
     List<AppHelper> runningApps = new List<AppHelper>();
 
     public GamesList gamesList;
@@ -44,36 +47,16 @@ public class GameManager : MonoBehaviour
         if (instance == null) instance = this;
         else Destroy(this);
 
-        dataManager = new DataManager(Application.persistentDataPath, Application.persistentDataPath + "/GameData");
-        for (int i = 0; i < dataManager.gameTitles.Count; ++i) {
-            gameData.Add(dataManager.ReadGameData(dataManager.gameTitles[i]));
+        workingDirectory = Application.persistentDataPath;
+        gamesDirectory = workingDirectory + "/Games/";
 
-            // There was no data at the location, so remove it from the list and continue
-            if (gameData[i] == null) {
-                gameData.RemoveAt(i);
-                dataManager.gameTitles.RemoveAt(i);
-                --i;
-                continue;
-            }
-
-            if (!FileManager.CheckIfFileExists(gameData[i].exePath)) {
-                dataManager.DeleteGameData(gameData[i]);
-                gameData.RemoveAt(i);
-                dataManager.gameTitles.RemoveAt(i);
-                --i;
-                continue;
-            }
-        }
+        dataManager = new DataManager(gamesDirectory);
+        gameData = dataManager.GetAllGameData();
 
         if (gameData.Count > 0) {
             PickDisplayGame();
             UpdateAllSelectionText();
         }
-    }
-
-    private void OnApplicationQuit()
-    {
-        dataManager.WriteTitles(gameData);
     }
 
     private void Update()
@@ -167,15 +150,16 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void CreateNewGameData()
     {
-        GameData data = new GameData(gameExecutableInputField.text, gameTitleInputField.text, gameDescriptionInputField.text);
+        GameData data = new GameData(gameTitleInputField.text);
+        data.gameDescription = gameDescriptionInputField.text;
         gameExecutableInputField.text = "";
         gameTitleInputField.text = "";
         gameDescriptionInputField.text = "";
 
         // copies the given file and saves it as a png inside the launcher's working directory
-        string[] images = gameImageInputField.GetStrings();
-        dataManager.WriteTexture(data.gameTitle, FileManager.ReadTexture(images[0]));
-        gameImageInputField.ApplyNewStrings(new string[0]);
+        //string[] images = gameImageInputField.GetStrings();
+        //dataManager.WriteTexture(data.gameTitle, FileManager.ReadTexture(images[0]));
+        //gameImageInputField.ApplyNewStrings(new string[0]);
 
         AddExistingGameData(data, true);
     }
@@ -262,7 +246,7 @@ public class GameManager : MonoBehaviour
         gamePreviewTitle.text = game.gameTitle;
         gamePreviewDescription.text = game.gameDescription;
 
-        gamePreviewImage.texture = dataManager.ReadTexture(game.gameTitle);
+        //gamePreviewImage.texture = dataManager.ReadTexture(game.gameTitle);
     }
 
     /// <summary>

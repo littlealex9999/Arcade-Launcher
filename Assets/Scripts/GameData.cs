@@ -4,15 +4,14 @@ using UnityEngine;
 
 public class GameData
 {
-    public string exePath;
-    public string gameTitle;
+    public string gameTitle { get; private set; }
     public string gameDescription;
 
+    public string applicationPath { get { return GameManager.gamesDirectory + gameTitle + "/app.lnk"; } }
+
     public GameData() { }
-    public GameData(string exePath, string gameTitle, string gameDescription)
+    public GameData(string gameTitle)
     {
-        this.exePath = exePath;
         this.gameTitle = gameTitle;
-        this.gameDescription = gameDescription;
     }
 }
