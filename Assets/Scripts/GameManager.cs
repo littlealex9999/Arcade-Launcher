@@ -47,7 +47,12 @@ public class GameManager : MonoBehaviour
         if (instance == null) instance = this;
         else Destroy(this);
 
+#if UNITY_EDITOR
         workingDirectory = Application.persistentDataPath;
+#else
+        workingDirectory = Application.dataPath;
+#endif
+
         gamesDirectory = workingDirectory + "/Games/";
 
         dataManager = new DataManager(gamesDirectory);

@@ -17,10 +17,13 @@ public class DataManager
         workingDirectory = applicationDataPath;
 
         string[] directoryNames = FileManager.GetFilesInDirectory(applicationDataPath);
-        titles.AddRange(directoryNames);
 
-        for (int i = 0; i < titles.Count; ++i) {
-            titles[i] = titles[i].TrimStart(workingDirectory.ToCharArray());
+        if (directoryNames != null) {
+            titles.AddRange(directoryNames);
+
+            for (int i = 0; i < titles.Count; ++i) {
+                titles[i] = titles[i].TrimStart(workingDirectory.ToCharArray());
+            }
         }
     }
 

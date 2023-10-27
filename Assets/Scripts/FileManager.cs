@@ -3,51 +3,32 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices.ComTypes;
 using UnityEditor;
 using UnityEngine;
 
 public static class FileManager
 {
     #region Helpers
-    static BinaryReader ReadFile(string path, string filename, out FileStream stream)
-    {
-        return ReadFile(path + "/" + filename, out stream);
-    }
-
-    static BinaryReader ReadFile(string path, out FileStream stream)
+    #region Stream
+    static FileStream ReadStream(string path)
     {
         if (File.Exists(path)) {
 #if UNITY_EDITOR
             Debug.Log("Reading a file at: \"" + path + "\"");
 #endif
 
-            stream = File.Open(path, FileMode.Open, FileAccess.Read);
-            return new BinaryReader(stream);
+            return File.Open(path, FileMode.Open, FileAccess.Read);
         } else {
 #if UNITY_EDITOR
             Debug.LogWarning("Failed to read a file at: \"" + path + "\"");
 #endif
 
-            stream = null;
             return null;
         }
     }
 
-    /// <summary>
-    /// Creates a new file at the location. Creates any directories that do not exist on the way.
-    /// </summary>
-    /// <param name="path"></param>
-    /// <param name="filename"></param>
-    /// <param name="stream"></param>
-    /// <returns></returns>
-    static BinaryWriter WriteFile(string path, string filename, out FileStream stream)
-    {
-        Directory.CreateDirectory(path);
-
-        return WriteFile(path + "/" + filename, out stream);
-    }
-
-    static BinaryWriter WriteFile(string path, out FileStream stream)
+    static FileStream WriteStream(string path)
     {
 #if UNITY_EDITOR
         Debug.Log("Writing a file at: \"" + path + "\"");
@@ -61,10 +42,76 @@ public static class FileManager
             File.Delete(path);
         }
 
-        stream = File.Open(path, FileMode.CreateNew, FileAccess.Write);
+        return File.Open(path, FileMode.CreateNew, FileAccess.Write);
+    }
+    #endregion
+
+    #region Reading
+    static BinaryReader ReadFileBIN(string path, string filename, out FileStream stream)
+    {
+        return ReadFileBIN(path + "/" + filename, out stream);
+    }
+
+    static BinaryReader ReadFileBIN(string path, out FileStream stream)
+    {
+        stream = ReadStream(path);
+        if (stream != null) {
+            return new BinaryReader(stream);
+        } else {
+            return null;
+        }
+    }
+
+    static StreamReader ReadFileSTR(string path, string filename, out FileStream stream)
+    {
+        return ReadFileSTR(path + "/" + filename, out stream);
+    }
+
+    static StreamReader ReadFileSTR(string path, out FileStream stream)
+    {
+        stream = ReadStream(path);
+        if (stream != null) {
+            return new StreamReader(stream);
+        } else {
+            return null;
+        }
+    }
+    #endregion
+
+    #region Writing
+    /// <summary>
+    /// Creates a new file at the location. Creates any directories that do not exist on the way.
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="filename"></param>
+    /// <param name="stream"></param>
+    /// <returns></returns>
+    static BinaryWriter WriteFileBIN(string path, string filename, out FileStream stream)
+    {
+        Directory.CreateDirectory(path);
+        return WriteFileBIN(path + "/" + filename, out stream);
+    }
+
+    static BinaryWriter WriteFileBIN(string path, out FileStream stream)
+    {
+        stream = WriteStream(path);
         return new BinaryWriter(stream);
     }
 
+    static StreamWriter WriteFileSTR(string path, string filename, out FileStream stream)
+    {
+        Directory.CreateDirectory(path);
+        return WriteFileSTR(path + "/" + filename, out stream);
+    }
+
+    static StreamWriter WriteFileSTR(string path, out FileStream stream)
+    {
+        stream = WriteStream(path);
+        return new StreamWriter(stream);
+    }
+    #endregion
+
+    #region File Closing
     static void CloseFile(BinaryReader reader, FileStream stream)
     {
         reader.Close();
@@ -77,11 +124,20 @@ public static class FileManager
         stream.Close();
     }
 
-    public static void DeleteFile(string path)
+    static void CloseFile(StreamReader reader, FileStream stream)
     {
-        File.Delete(path);
+        reader.Close();
+        stream.Close();
     }
 
+    static void CloseFile(StreamWriter writer, FileStream stream)
+    {
+        writer.Close();
+        stream.Close();
+    }
+    #endregion
+
+    #region File Dialog
     public static string[] FileDialog()
     {
         return StandaloneFileBrowser.OpenFilePanel("Open File", "", "exe", false);
@@ -91,7 +147,9 @@ public static class FileManager
     {
         return StandaloneFileBrowser.OpenFilePanel("Open File", "", extensions, multipleSelection);
     }
+    #endregion
 
+    #region File Management
     public static bool CheckIfFileExists(string path)
     {
         return File.Exists(path);
@@ -99,8 +157,18 @@ public static class FileManager
 
     public static string[] GetFilesInDirectory(string path)
     {
-        return Directory.GetDirectories(path);
+        if (Directory.Exists(path)) {
+            return Directory.GetDirectories(path);
+        } else {
+            return null;
+        }
     }
+
+    public static void DeleteFile(string path)
+    {
+        File.Delete(path);
+    }
+    #endregion
     #endregion
 
     #region String Lists
@@ -108,7 +176,7 @@ public static class FileManager
     {
         List<string> list = new List<string>();
 
-        BinaryReader reader = ReadFile(path, filename, out FileStream stream);
+        BinaryReader reader = ReadFileBIN(path, filename, out FileStream stream);
         if (reader == null) return null;
 
         int listCount = reader.ReadInt32();
@@ -123,7 +191,7 @@ public static class FileManager
 
     public static void WriteStringList(string path, string filename, List<string> list)
     {
-        BinaryWriter writer = WriteFile(path, filename, out FileStream stream);
+        BinaryWriter writer = WriteFileBIN(path, filename, out FileStream stream);
 
         writer.Write(list.Count);
 
@@ -138,11 +206,11 @@ public static class FileManager
     #region GameData
     public static GameData ReadGameData(string path)
     {
-        BinaryReader reader = ReadFile(path, out FileStream stream);
+        StreamReader reader = ReadFileSTR(path, out FileStream stream);
         if (reader == null) return null;
 
-        GameData data = new GameData(reader.ReadString());
-        data.gameDescription = reader.ReadString();
+        GameData data = new GameData(reader.ReadLine());
+        data.gameDescription = reader.ReadLine();
 
         CloseFile(reader, stream);
         return data;
@@ -150,10 +218,10 @@ public static class FileManager
 
     public static void WriteGameData(string path, string filename, GameData data)
     {
-        BinaryWriter writer = WriteFile(path, filename, out FileStream stream);
+        StreamWriter writer = WriteFileSTR(path, filename, out FileStream stream);
 
-        writer.Write(data.gameTitle);
-        writer.Write(data.gameDescription);
+        writer.WriteLine(data.gameTitle);
+        writer.WriteLine(data.gameDescription);
 
         CloseFile(writer, stream);
     }
