@@ -16,7 +16,7 @@ public class DataManager
     {
         workingDirectory = applicationDataPath;
 
-        string[] directoryNames = FileManager.GetFilesInDirectory(applicationDataPath);
+        string[] directoryNames = FileManager.GetChildDirectories(applicationDataPath);
 
         if (directoryNames != null) {
             titles.AddRange(directoryNames);
@@ -43,5 +43,25 @@ public class DataManager
     public void WriteGameData(GameData data)
     {
         FileManager.WriteGameData(workingDirectory + data.gameTitle, gameDataFileName, data);
+    }
+
+    public List<Texture> GetTextures(string title)
+    {
+        string[] fileNames = FileManager.GetFileNamesInDirectory(workingDirectory + title);
+        List<string> textureNames = new List<string>();
+
+        for (int i = 0; i < fileNames.Length; i++) {
+            if (fileNames[i].EndsWith(textureFileExtension)) {
+                textureNames.Add(fileNames[i]);
+            }
+        }
+
+        List<Texture> textures = new List<Texture>();
+
+        for (int i = 0; i < textureNames.Count; i++) {
+            textures.Add(FileManager.ReadTexture(textureNames[i]));
+        }
+
+        return textures;
     }
 }

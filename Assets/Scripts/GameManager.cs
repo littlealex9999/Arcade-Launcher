@@ -41,6 +41,7 @@ public class GameManager : MonoBehaviour
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
+    List<Texture> textures = new List<Texture>();
 
     private void Awake()
     {
@@ -251,7 +252,12 @@ public class GameManager : MonoBehaviour
         gamePreviewTitle.text = game.gameTitle;
         gamePreviewDescription.text = game.gameDescription;
 
-        //gamePreviewImage.texture = dataManager.ReadTexture(game.gameTitle);
+        textures = dataManager.GetTextures(gameData[displayedGame].gameTitle);
+        if (textures.Count > 0) {
+            gamePreviewImage.texture = textures[0];
+        } else {
+            gamePreviewImage.texture = null;
+        }
     }
 
     /// <summary>

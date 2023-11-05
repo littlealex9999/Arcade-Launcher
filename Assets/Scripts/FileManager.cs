@@ -155,10 +155,19 @@ public static class FileManager
         return File.Exists(path);
     }
 
-    public static string[] GetFilesInDirectory(string path)
+    public static string[] GetChildDirectories(string path)
     {
         if (Directory.Exists(path)) {
             return Directory.GetDirectories(path);
+        } else {
+            return null;
+        }
+    }
+
+    public static string[] GetFileNamesInDirectory(string path)
+    {
+        if (Directory.Exists(path)) {
+            return Directory.GetFiles(path);
         } else {
             return null;
         }
@@ -245,16 +254,6 @@ public static class FileManager
     public static Texture2D ReadTexture(string path, string filename)
     {
         return ReadTexture(path + "/" + filename);
-    }
-
-    public static void WriteTexture(string path, string filename, Texture tex)
-    {
-        File.WriteAllBytes(path + "/" + filename, ImageConversion.EncodeToPNG((Texture2D)tex));
-    }
-
-    public static void WriteTexture(string path, string filename, Texture2D tex)
-    {
-        File.WriteAllBytes(path + "/" + filename, ImageConversion.EncodeToPNG(tex));
     }
     #endregion
 }
