@@ -20,6 +20,8 @@ public class GameManager : MonoBehaviour
     [Header("Debug")]
     public int targetGame = 0;
     public int displayedGame = -1;
+    public int selectedImage = 1;
+    public int displayedImage = 1;
 
     [Header("Selection Settings")]
     public float switchCooldown = 0.1f;
@@ -38,6 +40,7 @@ public class GameManager : MonoBehaviour
     public RawImage gamePreviewImage;
     public TextMeshProUGUI gamePreviewTitle;
     public TextMeshProUGUI gamePreviewDescription;
+    public List<RawImage> gameSubPreviewImages;
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
@@ -96,12 +99,24 @@ public class GameManager : MonoBehaviour
                 }
             }
 
+            // select a game
             float verticalInput = Input.GetAxis("Vertical");
 
             if (verticalInput > 0.5f) {
                 StartCoroutine(MoveBanners(1, switchCooldown));
             } else if (verticalInput < -0.5f) {
                 StartCoroutine(MoveBanners(-1, switchCooldown));
+            }
+
+            // select a preview image
+            float horizontalInput = Input.GetAxis("Horizontal");
+
+            if (verticalInput > 0.5f) {
+                selectedImage++;
+                UpdatePreviewImage(selectedImage);
+            } else if (verticalInput < -0.5f) {
+                selectedImage--;
+                UpdatePreviewImage(selectedImage);
             }
 
             // start running a game
@@ -253,8 +268,16 @@ public class GameManager : MonoBehaviour
         gamePreviewDescription.text = game.gameDescription;
 
         textures = dataManager.GetTextures(gameData[displayedGame].gameTitle);
+        selectedImage = 0;
+        UpdatePreviewImage(selectedImage);
+    }
+
+    void UpdatePreviewImage(int index)
+    {
         if (textures.Count > 0) {
-            gamePreviewImage.texture = textures[0];
+            if (selectedImage >= textures.Count) selectedImage = 0;
+            else if (selectedImage < 0) selectedImage = textures.Count - 1;
+            gamePreviewImage.texture = textures[selectedImage];
         } else {
             gamePreviewImage.texture = null;
         }
