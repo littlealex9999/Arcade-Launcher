@@ -21,11 +21,13 @@ public class GameManager : MonoBehaviour
     public int targetGame = 0;
     public int displayedGame = -1;
     public int selectedImage = 1;
-    public int displayedImage = 1;
+    int startingPreviewImageDisplayed = 0;
 
     [Header("Selection Settings")]
-    public float switchCooldown = 0.1f;
-    bool moving;
+    public float gameSwitchCooldown = 0.1f;
+    public float imageSwitchCooldown = 0.02f;
+    bool movingBanners;
+    bool movingImages;
 
     public Color normalColor = Color.white;
     public Color runningColor = Color.green;
@@ -103,20 +105,18 @@ public class GameManager : MonoBehaviour
             float verticalInput = Input.GetAxis("Vertical");
 
             if (verticalInput > 0.5f) {
-                StartCoroutine(MoveBanners(1, switchCooldown));
+                StartCoroutine(MoveBanners(1, gameSwitchCooldown));
             } else if (verticalInput < -0.5f) {
-                StartCoroutine(MoveBanners(-1, switchCooldown));
+                StartCoroutine(MoveBanners(-1, gameSwitchCooldown));
             }
 
             // select a preview image
             float horizontalInput = Input.GetAxis("Horizontal");
 
-            if (verticalInput > 0.5f) {
-                selectedImage++;
-                UpdatePreviewImage(selectedImage);
-            } else if (verticalInput < -0.5f) {
-                selectedImage--;
-                UpdatePreviewImage(selectedImage);
+            if (horizontalInput > 0.5f) {
+                StartCoroutine(MovePicture(1, imageSwitchCooldown));
+            } else if (horizontalInput < -0.5f) {
+                StartCoroutine(MovePicture(-1, imageSwitchCooldown));
             }
 
             // start running a game
@@ -176,11 +176,6 @@ public class GameManager : MonoBehaviour
         gameExecutableInputField.text = "";
         gameTitleInputField.text = "";
         gameDescriptionInputField.text = "";
-
-        // copies the given file and saves it as a png inside the launcher's working directory
-        //string[] images = gameImageInputField.GetStrings();
-        //dataManager.WriteTexture(data.gameTitle, FileManager.ReadTexture(images[0]));
-        //gameImageInputField.ApplyNewStrings(new string[0]);
 
         AddExistingGameData(data, true);
     }
@@ -272,14 +267,38 @@ public class GameManager : MonoBehaviour
         UpdatePreviewImage(selectedImage);
     }
 
+    /// <summary>
+    /// Updates the preview image to display the specified image. Does a simple wrap if exceeding the limits of available images.
+    /// Also updates the smaller preview images, ensuring that at least the next image is visible.
+    /// </summary>
+    /// <param name="index"></param>
     void UpdatePreviewImage(int index)
     {
         if (textures.Count > 0) {
             if (selectedImage >= textures.Count) selectedImage = 0;
             else if (selectedImage < 0) selectedImage = textures.Count - 1;
             gamePreviewImage.texture = textures[selectedImage];
+            if (!gamePreviewImage.enabled) gamePreviewImage.enabled = true;
         } else {
             gamePreviewImage.texture = null;
+            gamePreviewImage.enabled = false;
+        }
+
+        if (selectedImage >= startingPreviewImageDisplayed + gameSubPreviewImages.Count - 1) {
+            startingPreviewImageDisplayed = selectedImage + 2 - gameSubPreviewImages.Count;
+            if (startingPreviewImageDisplayed + gameSubPreviewImages.Count > textures.Count) startingPreviewImageDisplayed = textures.Count - gameSubPreviewImages.Count;
+        } else if (selectedImage <= startingPreviewImageDisplayed) {
+            startingPreviewImageDisplayed = selectedImage - 1;
+            if (startingPreviewImageDisplayed < 0) startingPreviewImageDisplayed = 0;
+        }
+
+        for (int i = 0; i < gameSubPreviewImages.Count; i++) {
+            if (textures.Count > startingPreviewImageDisplayed + i) {
+                gameSubPreviewImages[i].texture = textures[startingPreviewImageDisplayed + i];
+                if (!gameSubPreviewImages[i].enabled) gameSubPreviewImages[i].enabled = true;
+            } else {
+                gameSubPreviewImages[i].enabled = false;
+            }
         }
     }
 
@@ -335,11 +354,11 @@ public class GameManager : MonoBehaviour
     /// <returns></returns>
     IEnumerator MoveBanners(int direction, float duration)
     {
-        if (direction == 0 || moving) yield break;
+        if (direction == 0 || movingBanners) yield break;
         if (direction < 0) direction = -1;
         else direction = 1;
 
-        moving = true;
+        movingBanners = true;
 
         Vector3[] startingPositions = new Vector3[gamesList.banners.Count];
         for (int i = 0; i < startingPositions.Length; i++) {
@@ -385,11 +404,41 @@ public class GameManager : MonoBehaviour
             gamesList.banners[i].transform.position = startingPositions[i];
         }
 
-        moving = false;
+        movingBanners = false;
         targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
 
         PickDisplayGame();
         UpdateAllSelectionText();
+
+        yield break;
+    }
+
+    /// <summary>
+    /// Changes the selected picture and handles anything during that process. 
+    /// </summary>
+    /// <param name="direction"></param>
+    /// <param name="duration"></param>
+    /// <returns></returns>
+    IEnumerator MovePicture(int direction, float duration)
+    {
+        if (direction == 0 || movingImages) yield break;
+        if (direction < 0) direction = -1;
+        else direction = 1;
+
+        movingImages = true;
+
+        float elapsedTime = 0;
+
+        selectedImage += direction;
+        UpdatePreviewImage(selectedImage);
+
+        while (elapsedTime < duration) {
+            elapsedTime += Time.deltaTime;
+
+            yield return new WaitForEndOfFrame();
+        }
+
+        movingImages = false;
 
         yield break;
     }
