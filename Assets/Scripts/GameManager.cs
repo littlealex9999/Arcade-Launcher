@@ -16,6 +16,7 @@ public class GameManager : MonoBehaviour
 
     public GamesList gamesList;
     public GameObject uploadScreen;
+    public GameObject displaySection;
 
     [Header("Debug")]
     public int targetGame = 0;
@@ -25,10 +26,15 @@ public class GameManager : MonoBehaviour
 
     [Header("Selection Settings")]
     public float gameSwitchCooldown = 0.1f;
-    public float imageSwitchCooldown = 0.02f;
+    public float imageSwitchCooldown = 0.1f;
     bool movingBanners;
     bool movingImages;
 
+    [Space]
+    public Vector2 gameSwitchHeightMovement = new Vector2(10, 10);
+    public AnimationCurve gameSwitchMovementCurve;
+
+    [Space]
     public Color normalColor = Color.white;
     public Color runningColor = Color.green;
 
@@ -43,6 +49,8 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI gamePreviewTitle;
     public TextMeshProUGUI gamePreviewDescription;
     public List<RawImage> gameSubPreviewImages;
+    RawImage gameSubPreviewImageHidden;
+    public RawImage gamePreviewSelectorImage;
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
@@ -63,6 +71,11 @@ public class GameManager : MonoBehaviour
 
         dataManager = new DataManager(gamesDirectory);
         gameData = dataManager.GetAllGameData();
+
+        if (gameSubPreviewImages.Count > 0) {
+            gameSubPreviewImageHidden = Instantiate(gameSubPreviewImages[0]);
+            gameSubPreviewImageHidden.enabled = false;
+        }
 
         if (gameData.Count > 0) {
             PickDisplayGame();
@@ -272,12 +285,16 @@ public class GameManager : MonoBehaviour
     /// Also updates the smaller preview images, ensuring that at least the next image is visible.
     /// </summary>
     /// <param name="index"></param>
+    /// <param name="setTexture"></param>
     void UpdatePreviewImage(int index)
     {
         if (textures.Count > 0) {
             if (selectedImage >= textures.Count) selectedImage = 0;
             else if (selectedImage < 0) selectedImage = textures.Count - 1;
-            gamePreviewImage.texture = textures[selectedImage];
+            //gamePreviewImage.texture = textures[selectedImage];
+            gamePreviewImage.material.SetTexture("_StartTex", textures[selectedImage]);
+            gamePreviewImage.material.SetTexture("_NextTex", textures[selectedImage]);
+            gamePreviewImage.material.SetFloat("_Completion", 0.0f);
             if (!gamePreviewImage.enabled) gamePreviewImage.enabled = true;
         } else {
             gamePreviewImage.texture = null;
@@ -300,6 +317,8 @@ public class GameManager : MonoBehaviour
                 gameSubPreviewImages[i].enabled = false;
             }
         }
+
+        gamePreviewSelectorImage.rectTransform.position = gameSubPreviewImages[selectedImage - startingPreviewImageDisplayed].rectTransform.position;
     }
 
     /// <summary>
@@ -388,13 +407,30 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        Vector3 displaySectionStartPos = displaySection.transform.position;
+        Vector3 displaySectionMove = gameSwitchHeightMovement;
+        if (direction < 0) displaySectionMove.y *= -1;
+
         float elapsedTime = 0.0f;
+        bool halftime = false;
         while (elapsedTime < duration) {
             elapsedTime += Time.deltaTime;
             float completionPercent = elapsedTime / duration;
+            if (!halftime && completionPercent > 0.5f) {
+                halftime = true;
+                targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+                PickDisplayGame();
+                UpdatePreviewData();
+            }
 
             for (int i = 0; i < accessors.Length; i++) {
                 gamesList.banners[i].transform.position = Vector3.Lerp(startingPositions[i], startingPositions[accessors[i]], completionPercent);
+            }
+
+            if (completionPercent <= 0.5f) {
+                displaySection.transform.position = Vector3.Lerp(displaySectionStartPos, displaySectionStartPos + displaySectionMove, gameSwitchMovementCurve.Evaluate(completionPercent * 2));
+            } else {
+                displaySection.transform.position = Vector3.Lerp(displaySectionStartPos + displaySectionMove, displaySectionStartPos, gameSwitchMovementCurve.Evaluate(completionPercent * 2 - 1));
             }
 
             yield return new WaitForEndOfFrame();
@@ -405,10 +441,11 @@ public class GameManager : MonoBehaviour
         }
 
         movingBanners = false;
-        targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
 
-        PickDisplayGame();
+        //targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+        //PickDisplayGame();
         UpdateAllSelectionText();
+        displaySection.transform.position = displaySectionStartPos;
 
         yield break;
     }
@@ -429,11 +466,19 @@ public class GameManager : MonoBehaviour
 
         float elapsedTime = 0;
 
+        Material fadeMat = gamePreviewImage.material;
+        Texture startTex = textures[selectedImage];
+
         selectedImage += direction;
         UpdatePreviewImage(selectedImage);
 
+        fadeMat.SetTexture("_StartTex", startTex);
+        //fadeMat.SetTexture("_NextTex", textures[selectedImage]); // _NextTex is implicitly set by calling UpdatePreviewImage
+
         while (elapsedTime < duration) {
             elapsedTime += Time.deltaTime;
+
+            fadeMat.SetFloat("_Completion", elapsedTime / duration);
 
             yield return new WaitForEndOfFrame();
         }
