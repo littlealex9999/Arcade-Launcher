@@ -28,7 +28,7 @@ public class GameManager : MonoBehaviour
     public float gameSwitchCooldown = 0.1f;
     public float imageSwitchCooldown = 0.1f;
     bool movingBanners;
-    bool movingBannersReceivingInput;
+    int movingBannersReceivingInput; // used similarly to a bool, but uses -1 and 1 as true, indicating the updated direction for moving the banners
     bool movingImages;
 
     [Space]
@@ -127,9 +127,13 @@ public class GameManager : MonoBehaviour
             float verticalInput = Input.GetAxis("Vertical");
 
             if (verticalInput > 0.5f) {
+                if (movingBannersReceivingInput < 1) movingBannersReceivingInput = 1;
                 StartCoroutine(MoveBanners(1, gameSwitchCooldown));
             } else if (verticalInput < -0.5f) {
+                if (movingBannersReceivingInput > -1) movingBannersReceivingInput = -1;
                 StartCoroutine(MoveBanners(-1, gameSwitchCooldown));
+            } else {
+                if (movingBannersReceivingInput != 0) movingBannersReceivingInput = 0;
             }
 
             // select a preview image
@@ -400,41 +404,49 @@ public class GameManager : MonoBehaviour
         }
 
         int[] accessors = new int[startingPositions.Length - 2];
-        for (int i = 0; i < accessors.Length; i++) {
-            if (direction > 0) {
-                if (i % 2 == 0) {
-                    accessors[i] = i + 2;
-                } else {
-                    accessors[i] = i - 2;
-                    if (accessors[i] < 0) {
-                        accessors[i] = 0;
+        void CalculateAccessors(ref int[] accessors)
+        {
+            for (int i = 0; i < accessors.Length; i++) {
+                if (direction > 0) {
+                    if (i % 2 == 0) {
+                        accessors[i] = i + 2;
+                    } else {
+                        accessors[i] = i - 2;
+                        if (accessors[i] < 0) {
+                            accessors[i] = 0;
+                        }
                     }
-                }
-            } else {
-                if (i % 2 == 1) {
-                    accessors[i] = i + 2;
                 } else {
-                    accessors[i] = i - 2;
-                    if (accessors[i] < 0) {
-                        accessors[i] = 1;
+                    if (i % 2 == 1) {
+                        accessors[i] = i + 2;
+                    } else {
+                        accessors[i] = i - 2;
+                        if (accessors[i] < 0) {
+                            accessors[i] = 1;
+                        }
                     }
                 }
             }
         }
 
+        CalculateAccessors(ref accessors);
+
+        Vector2 displaySectionOriginPos = displaySection.anchoredPosition;
         Vector2 displaySectionStartPos = displaySection.anchoredPosition;
         Vector2 displaySectionMove = gameSwitchDisplayMovement;
         if (direction < 0) displaySectionMove.y *= -1;
 
         float elapsedTime = 0.0f;
         bool halftime = false;
+        bool loopsave = false;
         while (elapsedTime < duration) {
             elapsedTime += Time.deltaTime;
             float completionPercent = elapsedTime / duration;
             if (completionPercent > 1) completionPercent = 1;
-            if (!halftime && completionPercent > 0.5f) {
+            if (!halftime && !loopsave && completionPercent > 0.5f) {
                 halftime = true;
                 targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+                displaySectionStartPos = displaySection.anchoredPosition;
                 PickDisplayGame();
                 UpdatePreviewData();
             }
@@ -446,17 +458,50 @@ public class GameManager : MonoBehaviour
                     bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], startingPositions[accessors[i]], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
                 }
             } else {
-                int pullOutIndex;
-                if (direction < 0) pullOutIndex = 2;
-                else pullOutIndex = 1;
-                bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(startingPositions[0], startingPositions[0] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                if (!loopsave) {
+                    if (movingBannersReceivingInput != 0) {
+                        displaySectionStartPos = displaySection.anchoredPosition;
+
+                        if (movingBannersReceivingInput > 0 && direction < 1) {
+                            direction = 1;
+                            displaySectionMove.y *= -1;
+                            CalculateAccessors(ref accessors);
+                        } else if (movingBannersReceivingInput < 0 && direction > -1) {
+                            direction = -1;
+                            displaySectionMove.y *= -1;
+                            CalculateAccessors(ref accessors);
+                        }
+
+                        halftime = false;
+
+                        for (int i = 0; i < startingPositions.Length; i++) {
+                            bannerRectTransforms[i].anchoredPosition = startingPositions[i];
+                        }
+                        UpdateAllSelectionText();
+
+                        elapsedTime = duration / 3.0f - elapsedTime % (duration / 3.0f);
+                        loopsave = true;
+                        continue;
+                    }
+
+                    int pullOutIndex;
+                    if (direction < 0) pullOutIndex = 2;
+                    else pullOutIndex = 1;
+                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(startingPositions[0], startingPositions[0] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                } else {
+                    for (int i = 0; i < accessors.Length; i++) {
+                        bannerRectTransforms[i].anchoredPosition = startingPositions[accessors[i]];
+                    }
+                }
             }
 
             if (completionPercent <= 0.5f) {
-                displaySection.anchoredPosition= Vector3.Lerp(displaySectionStartPos, displaySectionStartPos + displaySectionMove, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2));
+                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos, displaySectionOriginPos + displaySectionMove, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2));
             } else {
-                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos + displaySectionMove, displaySectionStartPos, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2 - 1));
+                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos, displaySectionOriginPos, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2 - 1));
             }
+
+            loopsave = false;
 
             yield return new WaitForEndOfFrame();
         }
@@ -471,7 +516,7 @@ public class GameManager : MonoBehaviour
         //targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
         //PickDisplayGame();
         UpdateAllSelectionText();
-        displaySection.anchoredPosition = displaySectionStartPos;
+        displaySection.anchoredPosition = displaySectionOriginPos;
 
         yield break;
     }
