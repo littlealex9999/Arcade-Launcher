@@ -7,10 +7,11 @@ using UnityEngine;
 public class SetTextTime : MonoBehaviour
 {
     public TextMeshProUGUI text;
+    public string format = "HH:mm";
 
     void Update()
     {
         DateTime now = DateTime.Now;
-        text.text = now.Hour.ToString() + ":" + now.Minute.ToString();
+        text.text = now.ToString(format);
     }
 }

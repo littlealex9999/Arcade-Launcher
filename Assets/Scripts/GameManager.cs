@@ -16,7 +16,7 @@ public class GameManager : MonoBehaviour
 
     public GamesList gamesList;
     public GameObject uploadScreen;
-    public GameObject displaySection;
+    public RectTransform displaySection;
 
     [Header("Debug")]
     public int targetGame = 0;
@@ -28,11 +28,18 @@ public class GameManager : MonoBehaviour
     public float gameSwitchCooldown = 0.1f;
     public float imageSwitchCooldown = 0.1f;
     bool movingBanners;
+    bool movingBannersReceivingInput;
     bool movingImages;
 
     [Space]
-    public Vector2 gameSwitchHeightMovement = new Vector2(10, 10);
-    public AnimationCurve gameSwitchMovementCurve;
+    public Vector2 gameSwitchDisplayMovement = new Vector2(10, 10);
+    public AnimationCurve gameSwitchDisplayMovementCurve;
+
+    [Space]
+    public Vector2 selectedBannerOffset = new Vector2(1, 0);
+    public AnimationCurve gameSwitchBannerPullInCurve;
+    public AnimationCurve gameSwitchBannerMovementCurve;
+    public AnimationCurve gameSwitchBannerPullOutCurve;
 
     [Space]
     public Color normalColor = Color.white;
@@ -76,6 +83,8 @@ public class GameManager : MonoBehaviour
             gameSubPreviewImageHidden = Instantiate(gameSubPreviewImages[0]);
             gameSubPreviewImageHidden.enabled = false;
         }
+
+        gamesList.banners[0].GetComponent<RectTransform>().anchoredPosition += selectedBannerOffset;
 
         if (gameData.Count > 0) {
             PickDisplayGame();
@@ -379,9 +388,15 @@ public class GameManager : MonoBehaviour
 
         movingBanners = true;
 
-        Vector3[] startingPositions = new Vector3[gamesList.banners.Count];
+        Vector2[] startingPositions = new Vector2[gamesList.banners.Count];
+        RectTransform[] bannerRectTransforms = new RectTransform[gamesList.banners.Count];
         for (int i = 0; i < startingPositions.Length; i++) {
-            startingPositions[i] = gamesList.banners[i].transform.position;
+            bannerRectTransforms[i] = gamesList.banners[i].GetComponent<RectTransform>();
+            if (i == 0) { // i == 0 is the middle banner, and therefore the one that is jutting out
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition - selectedBannerOffset;
+            } else {
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition;
+            }
         }
 
         int[] accessors = new int[startingPositions.Length - 2];
@@ -407,8 +422,8 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        Vector3 displaySectionStartPos = displaySection.transform.position;
-        Vector3 displaySectionMove = gameSwitchHeightMovement;
+        Vector2 displaySectionStartPos = displaySection.anchoredPosition;
+        Vector2 displaySectionMove = gameSwitchDisplayMovement;
         if (direction < 0) displaySectionMove.y *= -1;
 
         float elapsedTime = 0.0f;
@@ -416,6 +431,7 @@ public class GameManager : MonoBehaviour
         while (elapsedTime < duration) {
             elapsedTime += Time.deltaTime;
             float completionPercent = elapsedTime / duration;
+            if (completionPercent > 1) completionPercent = 1;
             if (!halftime && completionPercent > 0.5f) {
                 halftime = true;
                 targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
@@ -423,21 +439,31 @@ public class GameManager : MonoBehaviour
                 UpdatePreviewData();
             }
 
-            for (int i = 0; i < accessors.Length; i++) {
-                gamesList.banners[i].transform.position = Vector3.Lerp(startingPositions[i], startingPositions[accessors[i]], completionPercent);
+            if (completionPercent <= 1.0f / 3.0f) {
+                bannerRectTransforms[0].anchoredPosition = Vector2.Lerp(startingPositions[0] + selectedBannerOffset, startingPositions[0], gameSwitchBannerPullInCurve.Evaluate(completionPercent * 3));
+            } else if (completionPercent <= 2.0f / 3.0f) {
+                for (int i = 0; i < accessors.Length; i++) {
+                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], startingPositions[accessors[i]], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                }
+            } else {
+                int pullOutIndex;
+                if (direction < 0) pullOutIndex = 2;
+                else pullOutIndex = 1;
+                bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(startingPositions[0], startingPositions[0] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
             }
 
             if (completionPercent <= 0.5f) {
-                displaySection.transform.position = Vector3.Lerp(displaySectionStartPos, displaySectionStartPos + displaySectionMove, gameSwitchMovementCurve.Evaluate(completionPercent * 2));
+                displaySection.anchoredPosition= Vector3.Lerp(displaySectionStartPos, displaySectionStartPos + displaySectionMove, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2));
             } else {
-                displaySection.transform.position = Vector3.Lerp(displaySectionStartPos + displaySectionMove, displaySectionStartPos, gameSwitchMovementCurve.Evaluate(completionPercent * 2 - 1));
+                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos + displaySectionMove, displaySectionStartPos, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2 - 1));
             }
 
             yield return new WaitForEndOfFrame();
         }
 
+        startingPositions[0] += selectedBannerOffset;
         for (int i = 0; i < startingPositions.Length; i++) {
-            gamesList.banners[i].transform.position = startingPositions[i];
+            bannerRectTransforms[i].anchoredPosition = startingPositions[i];
         }
 
         movingBanners = false;
@@ -445,7 +471,7 @@ public class GameManager : MonoBehaviour
         //targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
         //PickDisplayGame();
         UpdateAllSelectionText();
-        displaySection.transform.position = displaySectionStartPos;
+        displaySection.anchoredPosition = displaySectionStartPos;
 
         yield break;
     }
