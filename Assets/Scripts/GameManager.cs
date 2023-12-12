@@ -16,15 +16,32 @@ public class GameManager : MonoBehaviour
 
     public GamesList gamesList;
     public GameObject uploadScreen;
+    public RectTransform displaySection;
 
     [Header("Debug")]
     public int targetGame = 0;
     public int displayedGame = -1;
+    public int selectedImage = 1;
+    int startingPreviewImageDisplayed = 0;
 
     [Header("Selection Settings")]
-    public float switchCooldown = 0.1f;
-    bool moving;
+    public float gameSwitchCooldown = 0.1f;
+    public float imageSwitchCooldown = 0.1f;
+    bool movingBanners;
+    int movingBannersReceivingInput; // used similarly to a bool, but uses -1 and 1 as true, indicating the updated direction for moving the banners
+    bool movingImages;
 
+    [Space]
+    public Vector2 gameSwitchDisplayMovement = new Vector2(10, 10);
+    public AnimationCurve gameSwitchDisplayMovementCurve;
+
+    [Space]
+    public Vector2 selectedBannerOffset = new Vector2(1, 0);
+    public AnimationCurve gameSwitchBannerPullInCurve;
+    public AnimationCurve gameSwitchBannerMovementCurve;
+    public AnimationCurve gameSwitchBannerPullOutCurve;
+
+    [Space]
     public Color normalColor = Color.white;
     public Color runningColor = Color.green;
 
@@ -38,6 +55,9 @@ public class GameManager : MonoBehaviour
     public RawImage gamePreviewImage;
     public TextMeshProUGUI gamePreviewTitle;
     public TextMeshProUGUI gamePreviewDescription;
+    public List<RawImage> gameSubPreviewImages;
+    RawImage gameSubPreviewImageHidden;
+    public RawImage gamePreviewSelectorImage;
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
@@ -58,6 +78,13 @@ public class GameManager : MonoBehaviour
 
         dataManager = new DataManager(gamesDirectory);
         gameData = dataManager.GetAllGameData();
+
+        if (gameSubPreviewImages.Count > 0) {
+            gameSubPreviewImageHidden = Instantiate(gameSubPreviewImages[0]);
+            gameSubPreviewImageHidden.enabled = false;
+        }
+
+        gamesList.banners[0].GetComponent<RectTransform>().anchoredPosition += selectedBannerOffset;
 
         if (gameData.Count > 0) {
             PickDisplayGame();
@@ -96,12 +123,26 @@ public class GameManager : MonoBehaviour
                 }
             }
 
+            // select a game
             float verticalInput = Input.GetAxis("Vertical");
 
             if (verticalInput > 0.5f) {
-                StartCoroutine(MoveBanners(1, switchCooldown));
+                if (movingBannersReceivingInput < 1) movingBannersReceivingInput = 1;
+                StartCoroutine(MoveBanners(1, gameSwitchCooldown));
             } else if (verticalInput < -0.5f) {
-                StartCoroutine(MoveBanners(-1, switchCooldown));
+                if (movingBannersReceivingInput > -1) movingBannersReceivingInput = -1;
+                StartCoroutine(MoveBanners(-1, gameSwitchCooldown));
+            } else {
+                if (movingBannersReceivingInput != 0) movingBannersReceivingInput = 0;
+            }
+
+            // select a preview image
+            float horizontalInput = Input.GetAxis("Horizontal");
+
+            if (horizontalInput > 0.5f) {
+                StartCoroutine(MovePicture(1, imageSwitchCooldown));
+            } else if (horizontalInput < -0.5f) {
+                StartCoroutine(MovePicture(-1, imageSwitchCooldown));
             }
 
             // start running a game
@@ -161,11 +202,6 @@ public class GameManager : MonoBehaviour
         gameExecutableInputField.text = "";
         gameTitleInputField.text = "";
         gameDescriptionInputField.text = "";
-
-        // copies the given file and saves it as a png inside the launcher's working directory
-        //string[] images = gameImageInputField.GetStrings();
-        //dataManager.WriteTexture(data.gameTitle, FileManager.ReadTexture(images[0]));
-        //gameImageInputField.ApplyNewStrings(new string[0]);
 
         AddExistingGameData(data, true);
     }
@@ -253,11 +289,49 @@ public class GameManager : MonoBehaviour
         gamePreviewDescription.text = game.gameDescription;
 
         textures = dataManager.GetTextures(gameData[displayedGame].gameTitle);
+        selectedImage = 0;
+        UpdatePreviewImage(selectedImage);
+    }
+
+    /// <summary>
+    /// Updates the preview image to display the specified image. Does a simple wrap if exceeding the limits of available images.
+    /// Also updates the smaller preview images, ensuring that at least the next image is visible.
+    /// </summary>
+    /// <param name="index"></param>
+    /// <param name="setTexture"></param>
+    void UpdatePreviewImage(int index)
+    {
         if (textures.Count > 0) {
-            gamePreviewImage.texture = textures[0];
+            if (selectedImage >= textures.Count) selectedImage = 0;
+            else if (selectedImage < 0) selectedImage = textures.Count - 1;
+            //gamePreviewImage.texture = textures[selectedImage];
+            gamePreviewImage.material.SetTexture("_StartTex", textures[selectedImage]);
+            gamePreviewImage.material.SetTexture("_NextTex", textures[selectedImage]);
+            gamePreviewImage.material.SetFloat("_Completion", 0.0f);
+            if (!gamePreviewImage.enabled) gamePreviewImage.enabled = true;
         } else {
             gamePreviewImage.texture = null;
+            gamePreviewImage.enabled = false;
         }
+
+        if (selectedImage >= startingPreviewImageDisplayed + gameSubPreviewImages.Count - 1) {
+            startingPreviewImageDisplayed = selectedImage + 2 - gameSubPreviewImages.Count;
+            if (startingPreviewImageDisplayed + gameSubPreviewImages.Count > textures.Count) startingPreviewImageDisplayed = textures.Count - gameSubPreviewImages.Count;
+        } else if (selectedImage <= startingPreviewImageDisplayed) {
+            startingPreviewImageDisplayed = selectedImage - 1;
+            if (startingPreviewImageDisplayed < 0) startingPreviewImageDisplayed = 0;
+        }
+
+        for (int i = 0; i < gameSubPreviewImages.Count; i++) {
+            if (textures.Count > startingPreviewImageDisplayed + i) {
+                gameSubPreviewImages[i].texture = textures[startingPreviewImageDisplayed + i];
+                if (!gameSubPreviewImages[i].enabled) gameSubPreviewImages[i].enabled = true;
+            } else {
+                gameSubPreviewImages[i].enabled = false;
+            }
+        }
+
+        gamePreviewSelectorImage.rectTransform.position = gameSubPreviewImages[selectedImage - startingPreviewImageDisplayed].rectTransform.position;
     }
 
     /// <summary>
@@ -312,61 +386,175 @@ public class GameManager : MonoBehaviour
     /// <returns></returns>
     IEnumerator MoveBanners(int direction, float duration)
     {
-        if (direction == 0 || moving) yield break;
+        if (direction == 0 || movingBanners) yield break;
         if (direction < 0) direction = -1;
         else direction = 1;
 
-        moving = true;
+        movingBanners = true;
 
-        Vector3[] startingPositions = new Vector3[gamesList.banners.Count];
+        Vector2[] startingPositions = new Vector2[gamesList.banners.Count];
+        RectTransform[] bannerRectTransforms = new RectTransform[gamesList.banners.Count];
         for (int i = 0; i < startingPositions.Length; i++) {
-            startingPositions[i] = gamesList.banners[i].transform.position;
+            bannerRectTransforms[i] = gamesList.banners[i].GetComponent<RectTransform>();
+            if (i == 0) { // i == 0 is the middle banner, and therefore the one that is jutting out
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition - selectedBannerOffset;
+            } else {
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition;
+            }
         }
 
         int[] accessors = new int[startingPositions.Length - 2];
-        for (int i = 0; i < accessors.Length; i++) {
-            if (direction > 0) {
-                if (i % 2 == 0) {
-                    accessors[i] = i + 2;
-                } else {
-                    accessors[i] = i - 2;
-                    if (accessors[i] < 0) {
-                        accessors[i] = 0;
+        void CalculateAccessors(ref int[] accessors)
+        {
+            for (int i = 0; i < accessors.Length; i++) {
+                if (direction > 0) {
+                    if (i % 2 == 0) {
+                        accessors[i] = i + 2;
+                    } else {
+                        accessors[i] = i - 2;
+                        if (accessors[i] < 0) {
+                            accessors[i] = 0;
+                        }
                     }
-                }
-            } else {
-                if (i % 2 == 1) {
-                    accessors[i] = i + 2;
                 } else {
-                    accessors[i] = i - 2;
-                    if (accessors[i] < 0) {
-                        accessors[i] = 1;
+                    if (i % 2 == 1) {
+                        accessors[i] = i + 2;
+                    } else {
+                        accessors[i] = i - 2;
+                        if (accessors[i] < 0) {
+                            accessors[i] = 1;
+                        }
                     }
                 }
             }
         }
 
+        CalculateAccessors(ref accessors);
+
+        Vector2 displaySectionOriginPos = displaySection.anchoredPosition;
+        Vector2 displaySectionStartPos = displaySection.anchoredPosition;
+        Vector2 displaySectionMove = gameSwitchDisplayMovement;
+        if (direction < 0) displaySectionMove.y *= -1;
+
         float elapsedTime = 0.0f;
+        bool halftime = false;
+        bool loopsave = false;
         while (elapsedTime < duration) {
             elapsedTime += Time.deltaTime;
             float completionPercent = elapsedTime / duration;
-
-            for (int i = 0; i < accessors.Length; i++) {
-                gamesList.banners[i].transform.position = Vector3.Lerp(startingPositions[i], startingPositions[accessors[i]], completionPercent);
+            if (completionPercent > 1) completionPercent = 1;
+            if (!halftime && !loopsave && completionPercent > 0.5f) {
+                halftime = true;
+                targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+                displaySectionStartPos = displaySection.anchoredPosition;
+                PickDisplayGame();
+                UpdatePreviewData();
             }
+
+            if (completionPercent <= 1.0f / 3.0f) {
+                bannerRectTransforms[0].anchoredPosition = Vector2.Lerp(startingPositions[0] + selectedBannerOffset, startingPositions[0], gameSwitchBannerPullInCurve.Evaluate(completionPercent * 3));
+            } else if (completionPercent <= 2.0f / 3.0f) {
+                for (int i = 0; i < accessors.Length; i++) {
+                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], startingPositions[accessors[i]], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                }
+            } else {
+                if (!loopsave) {
+                    if (movingBannersReceivingInput != 0) {
+                        displaySectionStartPos = displaySection.anchoredPosition;
+
+                        if (movingBannersReceivingInput > 0 && direction < 1) {
+                            direction = 1;
+                            displaySectionMove.y *= -1;
+                            CalculateAccessors(ref accessors);
+                        } else if (movingBannersReceivingInput < 0 && direction > -1) {
+                            direction = -1;
+                            displaySectionMove.y *= -1;
+                            CalculateAccessors(ref accessors);
+                        }
+
+                        halftime = false;
+
+                        for (int i = 0; i < startingPositions.Length; i++) {
+                            bannerRectTransforms[i].anchoredPosition = startingPositions[i];
+                        }
+                        UpdateAllSelectionText();
+
+                        elapsedTime = duration / 3.0f - elapsedTime % (duration / 3.0f);
+                        loopsave = true;
+                        continue;
+                    }
+
+                    int pullOutIndex;
+                    if (direction < 0) pullOutIndex = 2;
+                    else pullOutIndex = 1;
+                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(startingPositions[0], startingPositions[0] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                } else {
+                    for (int i = 0; i < accessors.Length; i++) {
+                        bannerRectTransforms[i].anchoredPosition = startingPositions[accessors[i]];
+                    }
+                }
+            }
+
+            if (completionPercent <= 0.5f) {
+                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos, displaySectionOriginPos + displaySectionMove, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2));
+            } else {
+                displaySection.anchoredPosition = Vector3.Lerp(displaySectionStartPos, displaySectionOriginPos, gameSwitchDisplayMovementCurve.Evaluate(completionPercent * 2 - 1));
+            }
+
+            loopsave = false;
 
             yield return new WaitForEndOfFrame();
         }
 
+        startingPositions[0] += selectedBannerOffset;
         for (int i = 0; i < startingPositions.Length; i++) {
-            gamesList.banners[i].transform.position = startingPositions[i];
+            bannerRectTransforms[i].anchoredPosition = startingPositions[i];
         }
 
-        moving = false;
-        targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+        movingBanners = false;
 
-        PickDisplayGame();
+        //targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+        //PickDisplayGame();
         UpdateAllSelectionText();
+        displaySection.anchoredPosition = displaySectionOriginPos;
+
+        yield break;
+    }
+
+    /// <summary>
+    /// Changes the selected picture and handles anything during that process. 
+    /// </summary>
+    /// <param name="direction"></param>
+    /// <param name="duration"></param>
+    /// <returns></returns>
+    IEnumerator MovePicture(int direction, float duration)
+    {
+        if (direction == 0 || movingImages) yield break;
+        if (direction < 0) direction = -1;
+        else direction = 1;
+
+        movingImages = true;
+
+        float elapsedTime = 0;
+
+        Material fadeMat = gamePreviewImage.material;
+        Texture startTex = textures[selectedImage];
+
+        selectedImage += direction;
+        UpdatePreviewImage(selectedImage);
+
+        fadeMat.SetTexture("_StartTex", startTex);
+        //fadeMat.SetTexture("_NextTex", textures[selectedImage]); // _NextTex is implicitly set by calling UpdatePreviewImage
+
+        while (elapsedTime < duration) {
+            elapsedTime += Time.deltaTime;
+
+            fadeMat.SetFloat("_Completion", elapsedTime / duration);
+
+            yield return new WaitForEndOfFrame();
+        }
+
+        movingImages = false;
 
         yield break;
     }
