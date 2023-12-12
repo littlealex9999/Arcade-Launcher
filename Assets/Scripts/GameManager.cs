@@ -57,7 +57,7 @@ public class GameManager : MonoBehaviour
     public TextMeshProUGUI gamePreviewDescription;
     public List<RawImage> gameSubPreviewImages;
     RawImage gameSubPreviewImageHidden;
-    public RawImage gamePreviewSelectorImage;
+    public Image gamePreviewSelectorImage;
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
@@ -392,18 +392,7 @@ public class GameManager : MonoBehaviour
 
         movingBanners = true;
 
-        Vector2[] startingPositions = new Vector2[gamesList.banners.Count];
-        RectTransform[] bannerRectTransforms = new RectTransform[gamesList.banners.Count];
-        for (int i = 0; i < startingPositions.Length; i++) {
-            bannerRectTransforms[i] = gamesList.banners[i].GetComponent<RectTransform>();
-            if (i == 0) { // i == 0 is the middle banner, and therefore the one that is jutting out
-                startingPositions[i] = bannerRectTransforms[i].anchoredPosition - selectedBannerOffset;
-            } else {
-                startingPositions[i] = bannerRectTransforms[i].anchoredPosition;
-            }
-        }
-
-        int[] accessors = new int[startingPositions.Length - 2];
+        int[] accessors = new int[gamesList.banners.Count - 2];
         void CalculateAccessors(ref int[] accessors)
         {
             for (int i = 0; i < accessors.Length; i++) {
@@ -431,6 +420,31 @@ public class GameManager : MonoBehaviour
 
         CalculateAccessors(ref accessors);
 
+        Vector2[] startingPositions = new Vector2[gamesList.banners.Count];
+        Vector2[] targetPositions = new Vector2[gamesList.banners.Count];
+        RectTransform[] bannerRectTransforms = new RectTransform[gamesList.banners.Count];
+        for (int i = 0; i < startingPositions.Length; i++) {
+            bannerRectTransforms[i] = gamesList.banners[i].GetComponent<RectTransform>();
+
+            if (i == 0) { // i == 0 is the middle banner, and therefore the one that is jutting out
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition - selectedBannerOffset;
+            } else {
+                startingPositions[i] = bannerRectTransforms[i].anchoredPosition;
+            }
+        }
+
+        void CalculateTargetPositions()
+        {
+            for (int i = 0; i < accessors.Length; i++) {
+                RectTransform parentRect = bannerRectTransforms[i].parent.GetComponent<RectTransform>();
+                RectTransform targetParentRect = bannerRectTransforms[accessors[i]].parent.GetComponent<RectTransform>();
+
+                targetPositions[i] = targetParentRect.anchoredPosition - parentRect.anchoredPosition;
+            }
+        }
+
+        CalculateTargetPositions();
+
         Vector2 displaySectionOriginPos = displaySection.anchoredPosition;
         Vector2 displaySectionStartPos = displaySection.anchoredPosition;
         Vector2 displaySectionMove = gameSwitchDisplayMovement;
@@ -455,7 +469,7 @@ public class GameManager : MonoBehaviour
                 bannerRectTransforms[0].anchoredPosition = Vector2.Lerp(startingPositions[0] + selectedBannerOffset, startingPositions[0], gameSwitchBannerPullInCurve.Evaluate(completionPercent * 3));
             } else if (completionPercent <= 2.0f / 3.0f) {
                 for (int i = 0; i < accessors.Length; i++) {
-                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], startingPositions[accessors[i]], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], targetPositions[i], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
                 }
             } else {
                 if (!loopsave) {
@@ -466,10 +480,12 @@ public class GameManager : MonoBehaviour
                             direction = 1;
                             displaySectionMove.y *= -1;
                             CalculateAccessors(ref accessors);
+                            CalculateTargetPositions();
                         } else if (movingBannersReceivingInput < 0 && direction > -1) {
                             direction = -1;
                             displaySectionMove.y *= -1;
                             CalculateAccessors(ref accessors);
+                            CalculateTargetPositions();
                         }
 
                         halftime = false;
@@ -487,7 +503,7 @@ public class GameManager : MonoBehaviour
                     int pullOutIndex;
                     if (direction < 0) pullOutIndex = 2;
                     else pullOutIndex = 1;
-                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(startingPositions[0], startingPositions[0] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(targetPositions[accessors[0]], targetPositions[accessors[0]] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
                 } else {
                     for (int i = 0; i < accessors.Length; i++) {
                         bannerRectTransforms[i].anchoredPosition = startingPositions[accessors[i]];
