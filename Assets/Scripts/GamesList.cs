@@ -1,12 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
+using UnityEngine.UI;
 
 public class GamesList : MonoBehaviour
 {
     public GameObject bannerObject;
     public List<GameObject> banners = new List<GameObject>();
+    public Image highlightedGame;
 
     [Min(1)] public int layers = 3;
     public int desiredBannerCount { get { return layers * 2 - 1; } }

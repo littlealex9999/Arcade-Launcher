@@ -8,6 +8,7 @@ using UnityEngine;
 public class DataManager
 {
     public readonly string gameDataFileName = "gamedata";
+    public readonly string bannerFileName = "banner.png";
     public readonly string textureFileExtension = ".png";
 
     public readonly string workingDirectory;
@@ -54,6 +55,7 @@ public class DataManager
 
         for (int i = 0; i < fileNames.Length; i++) {
             if (fileNames[i].EndsWith(textureFileExtension)) {
+                if (fileNames[i].EndsWith(bannerFileName)) continue;
                 textureNames.Add(fileNames[i]);
             }
         }
@@ -65,19 +67,35 @@ public class DataManager
         }
     }
 
+    public Texture LoadTextureData(TextureData textureData)
+    {
+        Texture2D tex = new Texture2D(0, 0, TextureFormat.RGBA32, false);
+        tex.LoadImage(textureData.data);
+
+        //tex.LoadRawTextureData(textureData.data);
+        //tex.Apply();
+
+        return tex;
+    }
+
     public List<Texture> LoadTextureData(List<TextureData> textureData)
     {
         List<Texture> textures = new List<Texture>();
 
         for (int i = 0; i < textureData.Count; i++) {
-            Texture2D tex = new Texture2D(150, 85, TextureFormat.RGBA32, false);
-            tex.LoadImage(textureData[i].data);
-
-            //tex.LoadRawTextureData(textureData[i].data);
-            //tex.Apply();
-            textures.Add(tex);
+            textures.Add(LoadTextureData(textureData[i]));
         }
 
         return textures;
+    }
+
+    public void LoadBannerData(ref GameData gameData)
+    {
+        TextureData bannerData = new TextureData(workingDirectory + gameData.folderPath + "/" + bannerFileName);
+        bannerData.data = FileManager.ReadTextureBytes(bannerData.texturePath);
+
+        if (bannerData.data != null) {
+            gameData.bannerTexture = LoadTextureData(bannerData);
+        }
     }
 }

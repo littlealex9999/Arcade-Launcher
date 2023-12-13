@@ -43,6 +43,7 @@ public class GameManager : MonoBehaviour
     public AnimationCurve gameSwitchBannerPullOutCurve;
 
     [Space]
+    public bool hideTextWhenBannerIsLoaded = true;
     public Color normalColor = Color.white;
     public Color runningColor = Color.green;
 
@@ -88,7 +89,7 @@ public class GameManager : MonoBehaviour
 
         if (gameData.Count > 0) {
             PickDisplayGame();
-            UpdateAllSelectionText();
+            UpdateBannersAndPreview();
         }
     }
 
@@ -118,7 +119,7 @@ public class GameManager : MonoBehaviour
                         --i;
 
                         // in case the game being played was currently selected
-                        UpdateAllSelectionText();
+                        UpdateBannersAndPreview();
                     }
                 }
             }
@@ -155,7 +156,7 @@ public class GameManager : MonoBehaviour
                     runningApps.Add(new AppHelper(gameData[displayedGame]));
                 }
 
-                UpdateAllSelectionText();
+                UpdateBannersAndPreview();
             }
 
             if (imageLoadingThread != null && !imageLoadingThread.IsAlive) {
@@ -216,7 +217,7 @@ public class GameManager : MonoBehaviour
 
         gameData.Add(data);
         dataManager.WriteGameData(data);
-        if (updateText) UpdateAllSelectionText();
+        if (updateText) UpdateBannersAndPreview();
     }
 
     /// <summary>
@@ -233,27 +234,53 @@ public class GameManager : MonoBehaviour
     /// Updates the banner with the relative index to the middle to have the correct text
     /// </summary>
     /// <param name="index"></param>
-    void UpdateSelectionText(int index)
+    void UpdateBanner(int index)
     {
-        TextMeshProUGUI targetText = gamesList.GetListObject(index).GetComponentInChildren<TextMeshProUGUI>();
-        targetText.text = SafeGetGameData(displayedGame + index).gameTitle;
-        if (CheckAppRunning(SafeGetGameData(displayedGame + index))) {
-            targetText.color = runningColor;
+        GameObject targetBanner = gamesList.GetListObject(index);
+        GameData targetGameData = SafeGetGameData(displayedGame + index);
+
+        TextMeshProUGUI targetText = targetBanner.GetComponentInChildren<TextMeshProUGUI>();
+
+        if (targetText != null) {
+            targetText.text = targetGameData.gameTitle;
+            if (CheckAppRunning(SafeGetGameData(displayedGame + index))) {
+                targetText.color = runningColor;
+            } else {
+                targetText.color = normalColor;
+            }
+        }
+
+        RawImage targetImage = targetBanner.GetComponentInChildren<RawImage>();
+
+        if (targetImage != null) {
+            if (targetGameData.bannerTexture == null) {
+                dataManager.LoadBannerData(ref targetGameData);
+            }
+
+            if (targetGameData.bannerTexture != null) {
+                targetImage.texture = targetGameData.bannerTexture;
+            } else {
+                targetImage.texture = null;
+            }
+        }
+
+        if (hideTextWhenBannerIsLoaded && targetText != null && targetImage != null & targetGameData.bannerTexture != null) {
+            targetText.enabled = false;
         } else {
-            targetText.color = normalColor;
+            targetText.enabled = true;
         }
     }
 
     /// <summary>
     /// Updates all banners and the preview data to be correct
     /// </summary>
-    void UpdateAllSelectionText()
+    void UpdateBannersAndPreview()
     {
-        UpdateSelectionText(0);
+        UpdateBanner(0);
 
         for (int i = 1; i < gamesList.layers + 1; i++) {
-            UpdateSelectionText(i);
-            UpdateSelectionText(-i);
+            UpdateBanner(i);
+            UpdateBanner(-i);
         }
 
         UpdatePreviewData();
@@ -271,7 +298,7 @@ public class GameManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Updates the game preview to display the correct data
+    /// Updates the game preview to display the correct data, and handles running a thread to load new texture data.
     /// </summary>
     void UpdatePreviewData()
     {
@@ -348,7 +375,8 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        gamePreviewSelectorImage.rectTransform.position = gameSubPreviewImages[selectedImage - startingPreviewImageDisplayed].rectTransform.position;
+        //gamePreviewSelectorImage.rectTransform.position = gameSubPreviewImages[selectedImage - startingPreviewImageDisplayed].rectTransform.position;
+        gamePreviewSelectorImage.transform.SetParent(gameSubPreviewImages[selectedImage - startingPreviewImageDisplayed].transform, false);
     }
 
     /// <summary>
@@ -474,19 +502,30 @@ public class GameManager : MonoBehaviour
             elapsedTime += Time.deltaTime;
             float completionPercent = elapsedTime / duration;
             if (completionPercent > 1) completionPercent = 1;
-            if (!halftime && !loopsave && completionPercent > 0.5f) {
+            if (!halftime && completionPercent > 0.5f) {
                 halftime = true;
-                targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
                 displaySectionStartPos = displaySection.anchoredPosition;
-                PickDisplayGame();
-                UpdatePreviewData();
+
+                if (!loopsave) {
+                    targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
+                    PickDisplayGame();
+                    UpdatePreviewData();
+                }
             }
 
             if (completionPercent <= 1.0f / 3.0f) {
-                bannerRectTransforms[0].anchoredPosition = Vector2.Lerp(startingPositions[0] + selectedBannerOffset, startingPositions[0], gameSwitchBannerPullInCurve.Evaluate(completionPercent * 3));
+                float eval = gameSwitchBannerPullInCurve.Evaluate(completionPercent * 3);
+                bannerRectTransforms[0].anchoredPosition = Vector2.Lerp(startingPositions[0] + selectedBannerOffset, startingPositions[0], eval);
+
+                if (gamesList.highlightedGame != null) {
+                    Color c = gamesList.highlightedGame.color;
+                    c.a = 1 - eval;
+                    gamesList.highlightedGame.color = c;
+                }
             } else if (completionPercent <= 2.0f / 3.0f) {
+                float eval = gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3);
                 for (int i = 0; i < accessors.Length; i++) {
-                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], targetPositions[i], gameSwitchBannerMovementCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+                    bannerRectTransforms[i].anchoredPosition = Vector2.Lerp(startingPositions[i], targetPositions[i], eval);
                 }
             } else {
                 if (!loopsave) {
@@ -510,7 +549,13 @@ public class GameManager : MonoBehaviour
                         for (int i = 0; i < startingPositions.Length; i++) {
                             bannerRectTransforms[i].anchoredPosition = startingPositions[i];
                         }
-                        UpdateAllSelectionText();
+                        UpdateBannersAndPreview();
+
+                        if (gamesList.highlightedGame != null) {
+                            Color c = gamesList.highlightedGame.color;
+                            c.a = 0.0f;
+                            gamesList.highlightedGame.color = c;
+                        }
 
                         elapsedTime = duration / 3.0f - elapsedTime % (duration / 3.0f);
                         loopsave = true;
@@ -520,7 +565,19 @@ public class GameManager : MonoBehaviour
                     int pullOutIndex;
                     if (direction < 0) pullOutIndex = 2;
                     else pullOutIndex = 1;
-                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(targetPositions[accessors[0]], targetPositions[accessors[0]] + selectedBannerOffset, gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3));
+
+                    float eval = gameSwitchBannerPullOutCurve.Evaluate(completionPercent % (1.0f / 3.0f) * 3);
+                    bannerRectTransforms[pullOutIndex].anchoredPosition = Vector2.Lerp(targetPositions[accessors[0]], targetPositions[accessors[0]] + selectedBannerOffset, eval);
+                    
+                    if (gamesList.highlightedGame != null) {
+                        if (gamesList.highlightedGame.transform.parent == gamesList.banners[0].transform) {
+                            gamesList.highlightedGame.transform.SetParent(gamesList.GetListObject(-direction).transform, false);
+                        }
+
+                        Color c = gamesList.highlightedGame.color;
+                        c.a = eval;
+                        gamesList.highlightedGame.color = c;
+                    }
                 } else {
                     for (int i = 0; i < accessors.Length; i++) {
                         bannerRectTransforms[i].anchoredPosition = startingPositions[accessors[i]];
@@ -544,11 +601,15 @@ public class GameManager : MonoBehaviour
             bannerRectTransforms[i].anchoredPosition = startingPositions[i];
         }
 
+        if (gamesList.highlightedGame != null) {
+            gamesList.highlightedGame.transform.SetParent(gamesList.banners[0].transform, false);
+        }
+
         movingBanners = false;
 
         //targetGame -= direction; // moving upwards gets us a "lower" game in the gameData list
         //PickDisplayGame();
-        UpdateAllSelectionText();
+        UpdateBannersAndPreview();
         displaySection.anchoredPosition = displaySectionOriginPos;
 
         yield break;
