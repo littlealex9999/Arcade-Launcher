@@ -648,6 +648,9 @@ public class GameManager : MonoBehaviour
             yield return new WaitForEndOfFrame();
         }
 
+        fadeMat.SetTexture("_StartTex", textures[selectedImage]);
+        fadeMat.SetFloat("_Completion", 1.0f);
+
         movingImages = false;
 
         yield break;
