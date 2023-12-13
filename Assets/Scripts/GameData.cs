@@ -7,6 +7,7 @@ public class GameData
     public string folderPath { get; private set; }
     public string gameTitle { get; private set; }
     public string gameDescription;
+    public List<Texture> textures;
 
     public string applicationPath { get { return GameManager.gamesDirectory + gameTitle + "/app.lnk"; } }
 

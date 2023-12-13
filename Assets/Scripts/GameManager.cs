@@ -66,6 +66,8 @@ public class GameManager : MonoBehaviour
         if (instance == null) instance = this;
         else Destroy(this);
 
+        Texture.allowThreadedTextureCreation = true;
+
 #if UNITY_EDITOR
         workingDirectory = Application.persistentDataPath;
 #else
@@ -277,9 +279,11 @@ public class GameManager : MonoBehaviour
         gamePreviewTitle.text = game.gameTitle;
         gamePreviewDescription.text = game.gameDescription;
 
-        //textures = dataManager.GetTextures(gameData[displayedGame].folderPath);
-        //selectedImage = 0;
-        //UpdatePreviewImage(selectedImage);
+        if (game.textures != null) {
+            textures = game.textures;
+            selectedImage = 0;
+            UpdatePreviewImage(selectedImage);
+        }
 
         if (imageLoadingThread != null && imageLoadingThread.IsAlive) {
             //imageLoadingThread.Abort();
@@ -298,9 +302,12 @@ public class GameManager : MonoBehaviour
 
     void UploadTextures(List<TextureData> textureData)
     {
-        textures = dataManager.LoadTextureData(textureData);
-        selectedImage = 0;
-        UpdatePreviewImage(selectedImage);
+        if (gameData[displayedGame].textures == null || textureData.Count != gameData[displayedGame].textures.Count) {
+            gameData[displayedGame].textures = dataManager.LoadTextureData(textureData);
+            textures = gameData[displayedGame].textures;
+            selectedImage = 0;
+            UpdatePreviewImage(selectedImage);
+        }
     }
 
     /// <summary>
