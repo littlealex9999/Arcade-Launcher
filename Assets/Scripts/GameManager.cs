@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -45,12 +46,6 @@ public class GameManager : MonoBehaviour
     public Color normalColor = Color.white;
     public Color runningColor = Color.green;
 
-    [Header("Input Data")]
-    public TMP_InputField gameExecutableInputField;
-    public InputFieldExtension gameImageInputField;
-    public TMP_InputField gameTitleInputField;
-    public TMP_InputField gameDescriptionInputField;
-
     [Header("Preview Data")]
     public RawImage gamePreviewImage;
     public TextMeshProUGUI gamePreviewTitle;
@@ -58,6 +53,9 @@ public class GameManager : MonoBehaviour
     public List<RawImage> gameSubPreviewImages;
     RawImage gameSubPreviewImageHidden;
     public Image gamePreviewSelectorImage;
+
+    Thread imageLoadingThread;
+    List<TextureData> imageLoadingThreadData;
 
     DataManager dataManager;
     List<GameData> gameData = new List<GameData>();
@@ -157,6 +155,11 @@ public class GameManager : MonoBehaviour
 
                 UpdateAllSelectionText();
             }
+
+            if (imageLoadingThread != null && !imageLoadingThread.IsAlive) {
+                UploadTextures(imageLoadingThreadData);
+                imageLoadingThread = null;
+            }
         }
     }
 
@@ -190,20 +193,6 @@ public class GameManager : MonoBehaviour
 
         string[] outs = FileManager.FileDialog(extensions, true);
         if (outs.Length > 0) inputField.ApplyNewStrings(outs);
-    }
-
-    /// <summary>
-    /// Creates new GameData based on input fields, then adds it to the list of games.
-    /// </summary>
-    public void CreateNewGameData()
-    {
-        GameData data = new GameData(gameTitleInputField.text);
-        data.gameDescription = gameDescriptionInputField.text;
-        gameExecutableInputField.text = "";
-        gameTitleInputField.text = "";
-        gameDescriptionInputField.text = "";
-
-        AddExistingGameData(data, true);
     }
 
     /// <summary>
@@ -288,7 +277,28 @@ public class GameManager : MonoBehaviour
         gamePreviewTitle.text = game.gameTitle;
         gamePreviewDescription.text = game.gameDescription;
 
-        textures = dataManager.GetTextures(gameData[displayedGame].gameTitle);
+        //textures = dataManager.GetTextures(gameData[displayedGame].folderPath);
+        //selectedImage = 0;
+        //UpdatePreviewImage(selectedImage);
+
+        if (imageLoadingThread != null && imageLoadingThread.IsAlive) {
+            //imageLoadingThread.Abort();
+            Debug.Log("Joining thread. There is likely a significant frame drop");
+            imageLoadingThread.Join();
+        }
+
+        imageLoadingThread = new Thread(() => GetTextureDataAsync(gameData[displayedGame].folderPath));
+        imageLoadingThread.Start();
+    }
+
+    void GetTextureDataAsync(string filepath)
+    {
+        dataManager.GetTextureData(filepath, out imageLoadingThreadData);
+    }
+
+    void UploadTextures(List<TextureData> textureData)
+    {
+        textures = dataManager.LoadTextureData(textureData);
         selectedImage = 0;
         UpdatePreviewImage(selectedImage);
     }

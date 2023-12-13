@@ -213,12 +213,18 @@ public static class FileManager
     #endregion
 
     #region GameData
-    public static GameData ReadGameData(string path)
+    /// <summary>
+    /// Reads gamedata at the specified path. folderName is passed through and not used to find the path containing the gamedata file.
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="folderName"></param>
+    /// <returns></returns>
+    public static GameData ReadGameData(string path, string folderName)
     {
         StreamReader reader = ReadFileSTR(path, out FileStream stream);
         if (reader == null) return null;
 
-        GameData data = new GameData(reader.ReadLine());
+        GameData data = new GameData(folderName, reader.ReadLine());
         data.gameDescription = reader.ReadLine();
 
         CloseFile(reader, stream);
@@ -237,23 +243,35 @@ public static class FileManager
     #endregion
 
     #region Texture
-    public static Texture2D ReadTexture(string path)
+    public static byte[] ReadTextureBytes(string path)
     {
-        Texture2D tex = null;
         byte[] data;
 
         if (File.Exists(path)) {
             data = File.ReadAllBytes(path);
-            tex = new Texture2D(1, 1);
+        } else {
+            Debug.LogWarning("Failed to read a file at: " + path);
+            return null;
+        }
+
+        return data;
+    }
+
+    public static Texture2D ReadTexture(string path, ref Texture2D tex)
+    {
+        byte[] data;
+
+        if (File.Exists(path)) {
+            data = File.ReadAllBytes(path);
             tex.LoadImage(data);
         }
 
         return tex;
     }
 
-    public static Texture2D ReadTexture(string path, string filename)
+    public static Texture2D ReadTexture(string path, string filename, ref Texture2D tex)
     {
-        return ReadTexture(path + "/" + filename);
+        return ReadTexture(path + "/" + filename, ref tex);
     }
     #endregion
 }
