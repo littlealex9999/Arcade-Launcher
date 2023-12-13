@@ -7,6 +7,7 @@ public class GameData
     public string folderPath { get; private set; }
     public string gameTitle { get; private set; }
     public string gameDescription;
+    public string playerInfo;
     public Texture bannerTexture;
     public List<Texture> textures;
 

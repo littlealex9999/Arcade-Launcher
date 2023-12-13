@@ -50,6 +50,7 @@ public class GameManager : MonoBehaviour
     [Header("Preview Data")]
     public RawImage gamePreviewImage;
     public TextMeshProUGUI gamePreviewTitle;
+    public TextMeshProUGUI gamePreviewPlayerInfo;
     public TextMeshProUGUI gamePreviewDescription;
     public List<RawImage> gameSubPreviewImages;
     RawImage gameSubPreviewImageHidden;
@@ -305,6 +306,7 @@ public class GameManager : MonoBehaviour
         GameData game = SafeGetGameData(displayedGame);
         gamePreviewTitle.text = game.gameTitle;
         gamePreviewDescription.text = game.gameDescription;
+        gamePreviewPlayerInfo.text = game.playerInfo;
 
         if (game.textures != null) {
             textures = game.textures;

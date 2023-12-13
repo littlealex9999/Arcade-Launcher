@@ -1135,6 +1135,7 @@ MonoBehaviour:
   runningColor: {r: 0, g: 1, b: 0, a: 1}
   gamePreviewImage: {fileID: 693477797}
   gamePreviewTitle: {fileID: 411933445}
+  gamePreviewPlayerInfo: {fileID: 1397172861}
   gamePreviewDescription: {fileID: 1527361308}
   gameSubPreviewImages:
   - {fileID: 960061247}

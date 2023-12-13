@@ -226,6 +226,7 @@ public static class FileManager
 
         GameData data = new GameData(folderName, reader.ReadLine());
         data.gameDescription = reader.ReadLine();
+        data.playerInfo = reader.ReadLine();
 
         CloseFile(reader, stream);
         return data;
@@ -237,6 +238,7 @@ public static class FileManager
 
         writer.WriteLine(data.gameTitle);
         writer.WriteLine(data.gameDescription);
+        writer.WriteLine(data.playerInfo);
 
         CloseFile(writer, stream);
     }
